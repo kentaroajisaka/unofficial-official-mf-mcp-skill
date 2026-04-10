@@ -1,16 +1,18 @@
-# 仕訳の一括取得（大量仕訳のページネーション）
+# 仕訳の一括取得
 
 ## いつ使うか
 
 - 全仕訳のバックアップが必要なとき（タグ一括更新前のバックアップ等）
 - 仕訳ベースの集計・分析で全件が必要なとき
-- 1期分の仕訳が500件を超える場合
 
-## 制約
+## API制約
 
+- **`per_page` の上限は10,000**（2026-04-10 実測確認済み。10,001以上は `invalid_query_parameter_value` エラー）
 - `getJournals` のレスポンスは1件あたり数KB〜100KB（branch数に比例）
 - Claude Codeのツール結果サイズ上限を超えるとファイルに自動保存される
-- `per_page` の上限は500（APIの制限）
+
+> **v2.1.0以前では `per_page` 上限を500と記載していましたが、実際にはAPIは10,000まで受け付けます。**
+> 複数法人で per_page=500 と per_page=10000 の結果をJSON完全比較し、データの欠落・劣化がないことを確認済みです。
 
 ## 手順
 
@@ -20,28 +22,31 @@
 getJournals(start_date="期首日", end_date="期末日", per_page=1, page=1)
 ```
 
-レスポンスの `metadata.total_count` と `metadata.total_pages` を確認。
-per_page=500での必要ページ数 = ceil(total_count / 500)。
+レスポンスの `metadata.total_count` を確認。
 
-### Step 2: 保存先ディレクトリを作成
+### Step 2: 取得
 
-```
-data/{会社名}/tmp/
-```
-
-### Step 3: 全ページを取得
-
-per_page=500で1ページずつ取得。レスポンスはClaude Codeが自動でファイルに保存する。
-保存されたファイルを `data/{会社名}/tmp/page_XX.txt` にコピーする。
+**10,000件以下（大半の法人）→ 1回で完了:**
 
 ```
-getJournals(start_date="期首日", end_date="期末日", per_page=500, page=N)
+getJournals(start_date="期首日", end_date="期末日", per_page=10000, page=1)
+```
+
+レスポンスはClaude Codeが自動でファイルに保存する。そのファイルパスがそのまま使える。
+
+**10,000件超の場合 → 2回に分けて取得:**
+
+```
+getJournals(start_date="期首日", end_date="期末日", per_page=10000, page=1)
+getJournals(start_date="期首日", end_date="期末日", per_page=10000, page=2)
 ```
 
 - 通年で一括取得可能（月ごとに分ける必要はない）
-- 各ページの結果ファイル（tool-results/内）を `tmp/page_01.txt` 〜 `tmp/page_XX.txt` にコピー
+- 各ページの結果ファイルを `data/{会社名}/tmp/page_01.txt`, `page_02.txt` に保存
 
-### Step 4: マージスクリプトで結合
+### Step 3: マージ（複数ページの場合のみ）
+
+1ページで全件取得できた場合はこのステップ不要。
 
 merge_journals.pyはスキルのscripts/フォルダに同梱されている。パスは環境によって異なる:
 - **Claude Code**: `~/.claude/skills/{スキル名}/scripts/merge_journals.py`
@@ -57,11 +62,7 @@ python3 /path/to/merge_journals.py data/{会社名}
 - `data/{会社名}/journals-backup.json` — 全仕訳（重複排除・日付順ソート済み）
 - 月別件数サマリー
 
-### Step 5: tmpを削除
-
-```bash
-rm -rf data/{会社名}/tmp/
-```
+マージ後: `rm -rf data/{会社名}/tmp/`
 
 ## merge_journals.py の仕様
 
@@ -121,4 +122,12 @@ rm -rf data/{会社名}/tmp/
 
 ## 実績
 
-- あるく株式会社（2025年度）: 7,115件、per_page=500で15回のAPI呼び出し、18MB
+- A社（約4,300件）: per_page=10000で1回、約10MB
+- B社（約18,600件）: per_page=10000で2回、約15MB+α
+- C社（約7,100件）: per_page=10000で1回
+
+## データ整合性の検証結果（2026-04-10）
+
+per_page=500 と per_page=10000 で同一仕訳500件を完全比較:
+- ID・tags・branches・全フィールドが**JSONレベルで完全一致**
+- per_page増加によるデータ欠落・劣化は一切なし
