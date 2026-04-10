@@ -4,7 +4,12 @@
 
 Claude Code / Claude Desktop（チャット・Cowork）の両方で動作します。AIがMFクラウド会計のMCPの使い方・APIのクセ・制約事項を自動で理解して対応してくれます。
 
-## v2.0.0 の変更点
+## v2.1.0 の変更点
+
+- **alpha版の認証フローを明確化** — `mfc_ca_authorize` → `mfc_ca_exchange` の2ステップを明記（exchangeを飛ばすと接続失敗する問題を修正）
+- **比較表にヘッドレス対応を追加** — alpha版はTelegramボット等ブラウザのない環境でも認証可能であることを明記
+
+### v2.0.0
 
 - **alpha版/beta版の使い分けガイド追加** — メリデメ比較表、複数法人同時処理の使い分け
 - **仕訳の一括取得機能** — per_page=500のページネーション + merge_journals.pyで結合（Claude Code / Cowork両対応）
@@ -78,7 +83,7 @@ mkdir -p ~/.claude/skills/unofficial-official-mf-mcp-skill
 cd ~/.claude/skills/unofficial-official-mf-mcp-skill
 
 # GitHubからファイルを取得（zipダウンロード → 展開でもOK）
-curl -L https://github.com/kentaroajisaka/unofficial-official-mf-mcp-skill/archive/refs/tags/v2.0.0.tar.gz | tar xz --strip-components=1
+curl -L https://github.com/kentaroajisaka/unofficial-official-mf-mcp-skill/archive/refs/tags/v2.1.0.tar.gz | tar xz --strip-components=1
 ```
 
 ### alpha版 vs beta版
@@ -88,9 +93,11 @@ curl -L https://github.com/kentaroajisaka/unofficial-official-mf-mcp-skill/archi
 | 認証方式 | 手動（認証コードをコピペ） | 自動（PKCE+localhostコールバック） |
 | トークン有効期限 | 約1時間（頻繁に再認証が必要） | 長時間 |
 | 複数法人同時利用 | **可能**（法人ごとに認証して同時保持） | 不可（切替時に再認証） |
+| ヘッドレス環境 | **対応**（コードをチャット等で渡せばOK） | 不可（localhostへのリダイレクトが必要） |
 
 - **1社だけ作業する場合** → beta版が楽
 - **複数法人を同時処理する場合** → alpha版
+- **Telegramボット等ブラウザのない環境** → alpha版（認証コードをチャットで送るだけで認証可能）
 
 ## 注意事項
 
