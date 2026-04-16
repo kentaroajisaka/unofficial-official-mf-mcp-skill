@@ -71,19 +71,40 @@ MF公式MCPにはalpha版とbeta版の2つのエンドポイントがある。**
 | カテゴリ | ツール | 用途 |
 |---------|--------|------|
 | 認証 | `authenticate` | OAuth認証（beta版はこれだけでOK） |
+| 認証 | `complete_authentication` | beta版認証でlocalhostリダイレクトがエラーになった時のフォールバック（URLを貼り付けて認証完了） |
 | 認証 | `mfc_ca_authorize` | 認証URL生成（alpha版ステップ1） |
 | 認証 | `mfc_ca_exchange` | 認可コード→アクセストークン交換（alpha版ステップ2、**必須**） |
 | 事業者 | `currentOffice` | 事業者情報・会計期間 |
+| 事業者 | `getTermSettings` | **会計年度設定**（税込/税抜・簡易課税/本則・都道府県・端数処理） |
 | 仕訳 | `getJournals` / `getJournalById` | 仕訳取得 |
 | 仕訳 | `postJournals` / `putJournals` | 仕訳登録・更新 |
 | 試算表 | `getReportsTrialBalanceBalanceSheet` / `ProfitLoss` | 試算表（累計） |
 | 推移表 | `getReportsTransitionBalanceSheet` / `ProfitLoss` | 推移表（月別） |
 | マスタ | `getAccounts` / `getSubAccounts` / `getDepartments` / `getTaxes` | 科目・部門・税区分 |
 | 取引先 | `getTradePartners` / `postTradePartners` | 取引先取得・登録 |
-| 証憑 | `postVouchers` | 証憑アップロード |
 | 口座 | `getConnectedAccounts` | 連携口座一覧 |
 | 取引 | `postTransactions` | 取引登録 |
 | 辞書 | `en_ja_dictionary` | 英日辞書 |
+
+> `postVouchers`（証憑アップロード）、`deleteJournals`（仕訳削除）、`deleteVouchers`（証憑の添付解除）はMCPツールスキーマには定義されていないが、アクセストークンで直接APIを叩けば利用可能。詳細は末尾の「スキーマ未定義だがAPIで利用可能な操作」参照。
+
+**getAccounts / getSubAccounts / getDepartments の `available` (boolean) クエリパラメータ（実測で挙動確定）:**
+
+OpenAPI仕様書の description は「nil」で記載がないが、2026-04に無効化済み科目を持つ事業者で3パターン実測した結果、以下の仕様が確定した:
+
+| 指定 | 挙動 |
+|---|---|
+| 省略 | 有効な科目のみ返却（各レコードは `available:true`） |
+| `available=true` | 有効な科目のみ返却（省略時と同一） |
+| `available=false` | **全科目（有効+無効）** を返却。無効化された科目は `available:false` で区別 |
+
+**名前と挙動が直感に反する点に注意:**
+- `false` = 「無効な科目だけ」ではなく「**全件（有効+無効）**」
+- 無効化された科目だけを取得したい場合は `false` で取った後に `available == false` でフィルタする必要がある
+
+実務的な用途:
+- MFの設定画面で非表示にしている科目も含めてマスタを網羅的に取得したい場合に `available=false` を使う
+- 決算整理等で稀にしか使わない科目（新株予約権・退職給与 等）が無効化されていると、突合時に欠落する可能性があるので注意
 
 ## PLの取得ルール
 
@@ -101,6 +122,52 @@ MF公式MCPにはalpha版とbeta版の2つのエンドポイントがある。**
 - **試算表・推移表**: MFでの設定上の経理方式に従う（そのまま使ってOK）
 - **仕訳取得時**: `value` は税抜き。税込 = `value` + `tax_value`
 - **仕訳登録時**: `value` は**税込金額**を指定する。APIが自動で税抜と消費税に分解する
+
+## 経理方式・課税方式の取得（`getTermSettings`）
+
+事業者の経理方式（税込/税抜）、課税方式（簡易/本則）、都道府県、端数処理等を一発で取得できる。
+**試算表APIを `include_tax` で2回叩いて比較する必要はない。**
+
+レスポンス例:
+```json
+{
+  "term_settings": [
+    {
+      "accounting_method": "TAX_INCLUDED",    // 税込経理
+      "tax_method": "SIMPLE",                 // 簡易課税
+      "business_types": ["OTHER"],            // 業種区分
+      "prefecture": "鹿児島県",
+      "purchases_rounding_method": "ROUND_DOWN",
+      "sales_rounding_method": "ROUND_DOWN",
+      "fiscal_year": 2025,
+      "start_date": "2025-06-06",
+      "end_date": "2026-05-31"
+    }
+  ]
+}
+```
+
+### accounting_method の値
+| 値 | 意味 |
+|---|---|
+| `TAX_INCLUDED` | 税込経理 |
+| `TAX_EXCLUDED` | 税抜経理（内税） |
+| `TAX_EXCLUDED_SEPARATE`（推定） | 税抜経理（別記） |
+
+### tax_method の値
+| 値 | 意味 |
+|---|---|
+| `SIMPLE` | 簡易課税 |
+| `GENERAL`（推定） | 本則課税（一般課税） |
+| `EXEMPT`（推定） | 免税 |
+
+### business_types（簡易課税の業種区分）
+簡易課税事業者の場合の業種区分。`OTHER` はその他。複数業種の会社は配列で複数持つ。
+
+### 用途
+- 仕訳データの金額補正（税込経理なら `value + tax_value` で帳簿金額）
+- 引き継ぎ資料・決算書の「経理方式」「課税方式」欄の自動記載
+- 簡易課税なら業種区分から売上高の補助科目設計（三種・四種 等）を確認
 
 ## 科目の突合
 
@@ -140,13 +207,13 @@ MF公式MCPにはalpha版とbeta版の2つのエンドポイントがある。**
 - フィールドを省略すると仕訳データが壊れる（科目・金額・部門等が消える）
 - **バックアップ推奨**: バッチ更新前にgetJournalsの結果をJSONファイルに保存しておくこと
 
-
 ## 証憑アップロード
 
 - **証憑アップロードはAPI経由で可能**（`POST /api/v3/vouchers`）。MCPツールスキーマには未定義だが、scopeに `voucher.write` が含まれておりAPIは存在する
 - **正しい手順: 仕訳を先に登録 → `journal_id` を指定して証憑アップ**
 - `journal_id` なしでもアップ可能だが、孤立した証憑になり**後から仕訳に紐づけるAPIは存在しない**
-- 証憑の**取得・一覧・削除のAPIは存在しない**（全て404）
+- 証憑の**取得・一覧・（証憑本体の）削除のAPIは存在しない**（全て404）
+- ただし「**仕訳と証憑の関連付け解除**」のAPI（`DELETE /api/v3/vouchers`）は存在する。これは証憑自体を削除するのではなく、仕訳との紐付けを外すだけ（証憑は孤立した状態で残る）
 
 ## 仕訳URLの生成
 

@@ -4,6 +4,14 @@
 
 Claude Code / Claude Desktop（チャット・Cowork）の両方で動作します。AIがMFクラウド会計のMCPの使い方・APIのクセ・制約事項を自動で理解して対応してくれます。
 
+## v2.3.0 の変更点
+
+- **`getTermSettings` ツールを追加** — 事業者の**経理方式（税込/税抜）・課税方式（簡易/本則/免税）・都道府県・業種区分・端数処理**を1回のAPI呼び出しで取得可能。**試算表APIを `include_tax` で2回叩いて比較する必要はなくなった**
+- **`complete_authentication` ツールを追加** — beta版認証でlocalhostリダイレクトが失敗した時のフォールバック（URLを手動で貼り付けて認証完了）
+- **`available` パラメータの実測仕様を追加** — `getAccounts` / `getSubAccounts` / `getDepartments` の `available` クエリは、**`false` 指定で「全件（有効+無効）」**を返す仕様（直感と逆）。`true` / 省略は有効な科目のみ。実測で確定
+- **`deleteVouchers` の正体が判明** — 「証憑本体の削除」ではなく **「仕訳と証憑の関連付け解除」** のAPI。証憑自体は孤立した状態で残る
+- **OpenAPIローカルコピーを2026-04最新版に差し替え** — 従来のローカルコピーは2025-01時点で古かった
+
 ## v2.2.0 の変更点
 
 - **`per_page` 上限を500→10,000に修正** — 実測で `per_page=10000` がAPIに受け付けられることを確認。10,001以上はエラー。v2.1.0以前の「上限500」は誤りでした
@@ -89,7 +97,7 @@ mkdir -p ~/.claude/skills/unofficial-official-mf-mcp-skill
 cd ~/.claude/skills/unofficial-official-mf-mcp-skill
 
 # GitHubからファイルを取得（zipダウンロード → 展開でもOK）
-curl -L https://github.com/kentaroajisaka/unofficial-official-mf-mcp-skill/archive/refs/tags/v2.2.0.tar.gz | tar xz --strip-components=1
+curl -L https://github.com/kentaroajisaka/unofficial-official-mf-mcp-skill/archive/refs/tags/v2.3.0.tar.gz | tar xz --strip-components=1
 ```
 
 ### alpha版 vs beta版
