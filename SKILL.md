@@ -112,6 +112,8 @@ OpenAPI仕様書の description は「nil」で記載がないが、2026-04に�
 - **累計** → 試算表API（`getReportsTrialBalance*`）
 - **単月** → 推移表API（`getReportsTransition*`）
 - 試算表APIのPLは累計で返る。単月は推移表APIを優先
+- 補助科目別の残高は `with_sub_accounts: true`。補助科目の付いていない行は「補助科目なし」として出るので、補助科目の付け忘れが見つかる。**会社全体（全部門合計）の残高は、仕訳から積み上げず推移表・試算表で取る**。部門別は下の「部門別データ」のとおり仕訳から集計するしかない
+- 明細（銀行・カードの取り込み）の取得は `getTransactions`。`per_page` は10〜500、金額で絞るときは `side` が必須。詳しくは references/accounting-transactions.md
 
 ## パラメータの注意点
 
@@ -224,6 +226,8 @@ https://accounting.moneyforward.com/books?numbers={number}&recognized_at_from={�
 ## 部門別データ
 
 - 試算表・推移表は**全部門合計**。部門別は仕訳APIから `department_name` で集計する
+- 部門別の貸借対照表（残高）を作るときは、**期首仕訳（`entered_by: JOURNAL_TYPE_OPENING`、期首日付の1本）を必ず含めて**集計する。期首仕訳には部門ごとの期首残高が入っていて、部門どうしで打ち消し合う行（例：ある部門に借方、部門なしに同額の貸方）もある。損益は期首仕訳の影響を受けない
+- 集計した部門別の数字は、部門を合計すると推移表（全部門合計）と一致するかで検算する
 
 ## 複数法人の同時利用
 

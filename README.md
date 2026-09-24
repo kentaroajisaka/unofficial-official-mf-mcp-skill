@@ -4,6 +4,13 @@
 
 Claude Code / Claude Desktop（チャット・Cowork）の両方で動作します。AIがMFクラウド会計のMCPの使い方・APIのクセ・制約事項を自動で理解して対応してくれます。
 
+## v2.4.0 の変更点
+
+- **明細（取引）の取得 `getTransactions` の仕様を追加** — 銀行・カードなどから取り込まれた明細を取るAPI。`per_page` は **10〜500**（1000 はエラー）、`value_min` / `value_max` で金額を絞るときは **`side`（INCOME / EXPENSE）が必須**、`journalizing_statuses` の値（未仕訳 `none`・対象外 `excluded` など）を実測で確認
+- **月次のチェックでの明細の使い方を追加** — 未仕訳の明細が残っていないか、「仕訳しない」にした明細に同じ日・口座・金額の仕訳があるかを確かめる手順
+- **推移表の補助科目の注意を追加** — `with_sub_accounts: true` で取ると、補助科目の付いていない行が「補助科目なし」として出るので、補助科目の付け忘れが見つかる。会社全体（全部門合計）の残高は、仕訳から積み上げず推移表・試算表で取る
+- **部門別の集計の注意を追加** — 試算表・推移表は全部門合計しか返さないので、部門別の残高は仕訳から集計する。そのとき **期首仕訳（`JOURNAL_TYPE_OPENING`）を必ず含める**（部門ごとの期首残高や、部門どうしで打ち消し合う行が入っている）。部門を合計して推移表と一致するかで検算する
+
 ## v2.3.0 の変更点
 
 - **`getTermSettings` ツールを追加** — 事業者の**経理方式（税込/税抜）・課税方式（簡易/本則/免税）・都道府県・業種区分・端数処理**を1回のAPI呼び出しで取得可能。**試算表APIを `include_tax` で2回叩いて比較する必要はなくなった**
@@ -97,7 +104,7 @@ mkdir -p ~/.claude/skills/unofficial-official-mf-mcp-skill
 cd ~/.claude/skills/unofficial-official-mf-mcp-skill
 
 # GitHubからファイルを取得（zipダウンロード → 展開でもOK）
-curl -L https://github.com/kentaroajisaka/unofficial-official-mf-mcp-skill/archive/refs/tags/v2.3.0.tar.gz | tar xz --strip-components=1
+curl -L https://github.com/kentaroajisaka/unofficial-official-mf-mcp-skill/archive/refs/tags/v2.4.0.tar.gz | tar xz --strip-components=1
 ```
 
 ### alpha版 vs beta版

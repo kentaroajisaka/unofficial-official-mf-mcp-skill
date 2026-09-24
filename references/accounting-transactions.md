@@ -90,3 +90,29 @@ MFクラウド会計に登録されている連携サービス（銀行口座・
 - データ連携の**未仕訳明細は取得・仕訳化できない**
 - 証憑はアップロードのみ。取得・削除・後付け紐づけは全て不可
 - 期首残高（開始仕訳）の登録はできない
+
+---
+
+## 明細（取引）の取得
+
+### mfc_ca_getTransactions
+
+連携サービス（銀行・カード・手動の現金出納帳など）に取り込まれた明細を取得する。mf-full では `mfc_ca_getTransactions`。
+
+#### パラメータ（2026-09-24 実測）
+
+| 名前 | 必須 | 説明 |
+|------|-----|------|
+| start_date / end_date | Yes | YYYY-MM-DD。差は366日以内 |
+| journalizing_statuses | No | `none`（未仕訳）/ `excluded`（対象外＝「仕訳しない」にした明細）/ `registered`（仕訳済み）/ `modified` / `new_voucher_attached` |
+| per_page | No | **10〜500**。1000 を渡すと 400 エラー（`per_page must be between 10 and 500`） |
+| value_min / value_max | No | 金額で絞る。**`side`（INCOME / EXPENSE）とセットでないと 400 エラー**（`side is required when value_min or value_max is provided`） |
+| side | No | `INCOME`（入金）/ `EXPENSE`（出金） |
+| connected_account_id / connected_sub_account_id | No | 口座で絞る。ID は `getConnectedAccounts` で取る |
+
+#### 月次監査での使い方
+
+- `journalizing_statuses: ["none"]` で対象月の**未仕訳の明細**を出す。0件でなければ仕訳漏れの候補
+- `journalizing_statuses: ["excluded"]` で「仕訳しない」にした明細を出し、**同じ日（前後数日）・同じ口座（補助科目）・同じ金額の仕訳があるか**を仕訳データと突き合わせる。自計化の会社は、借入返済・給与・資金移動などの明細を対象外にして、手で仕訳を入れていることが多い
+- 明細の `content`（相手名）と仕訳の摘要が食い違うとき（例：口座間の移動なのに相手名が個人名）は、相手側の口座の明細に同じ日・同じ額があるかを `side: INCOME` と金額で絞って確かめる
+- 明細の `connected_sub_account_id` と仕訳の補助科目名の対応は、`getConnectedAccounts` の `connected_sub_accounts[].name` と `sub_account_id` で取る
