@@ -179,6 +179,7 @@ JWTは1時間で切れるがサーバーが自動で取り直す。**利用者�
 | 取引先 | `getTradePartners` / `postTradePartners` | 取引先取得・登録 |
 | 口座 | `getConnectedAccounts` | 連携口座一覧 |
 | 取引 | `postTransactions` | 取引登録 |
+| 自動仕訳ルール | `getJournalRules` / `postJournalRules` / `putJournalRules` / `deleteJournalRules` | 通帳・カード他のルール（下の「自動仕訳ルール」。削除は mf-api / mf-full だけ） |
 | 辞書 | `en_ja_dictionary` | 英日辞書 |
 
 > `postVouchers`（証憑アップロード）、`deleteJournals`（仕訳削除）、`deleteVouchers`（証憑の添付解除）はMCPツールスキーマには定義されていないが、アクセストークンで直接APIを叩けば利用可能。詳細は末尾の「スキーマ未定義だがAPIで利用可能な操作」参照。
@@ -352,6 +353,24 @@ https://accounting.moneyforward.com/books?numbers={number}&recognized_at_from={�
 - beta版では認証時に選択した事業者に自動的に紐づく
 - 事業者を切り替える場合は `authenticate` で再認証し、別の事業者を選択する（beta版の場合）
 - alpha版は複数法人の認証を同時保持できるため、切り替え不要
+
+## 自動仕訳ルール（2026-10-20 MF公開・10-21 読み取り実測）
+
+`GET/POST/PUT/DELETE /api/v3/journal_rules`。対象は**「連携サービスから入力（通帳・カード他）」のルールだけ**（仕訳辞書などは対象外）。
+
+| MCP | ツール | 備考 |
+|---|---|---|
+| mf-api（APIキー） | `mfc_ca_getJournalRules` / `postJournalRules` / `putJournalRules` / `deleteJournalRules` | **再接続不要**。キー発行者のMF権限「自動で仕訳 > 自動仕訳ルール（閲覧／編集）」で動く |
+| mf-full（OAuth） | 同上 | スコープ `mfc/accounting/journal_rule.read`・`.write`。10/20 より前に認証した事業者は `authenticate` し直す |
+| 公式（alpha/beta） | 一覧の取得・作成・更新（削除は無い） | 10/20 より前に連携した接続は再接続が要る |
+
+- 一覧は1ページ最大200件。mf-api / mf-full は `all_pages: true` で全件まとめて取れる（実データで数百件の事業者を全件取得できた）
+- 絞り込み：`connected_account_id` か `connected_sub_account_id`（同時指定不可）、`side`、`content`＋`content_match_type`（摘要は対象外）
+- ルールの形：`side`・`content`・`condition_content_match_type`（exact/partial/forward/backward）・`value_min/max`・`priority`（小さいほど優先、既定100）・`is_auto_registration`・`is_fallback_rule`（どれにも当たらないとき用、口座×入出金に1件）・`journal_template.tags`・`journal_template.branches[]`（`remark`、`debitor`/`creditor` に `account_id`・`sub_account_id`・`tax_id`・`department_id`・`trade_partner_code`・`invoice_kind`・`value_type`＝FIXED_AMOUNT/ORIGINAL_AMOUNT/UNFIXED_AMOUNT・`value`）。複合ルールは branches が複数（最大300行）
+- **PUT は全置換**。省略した項目は null で上書きされる。GET で読んで、変える所だけ直して全項目を送る（mf-api / mf-full のツールは GET の形をそのまま渡せば `*_name` を外し、`value` を FIXED_AMOUNT のときだけ残す）
+- 作成・更新・削除は**1件でも失敗すると全件不成立**。エラーには `index` と `matching_conditions` が付く
+- 新規作成で `connected_sub_account_id` を指定するときは `connected_account_id` も必ず指定（片方だけは400）。両方省略は全連携サービスが対象
+- ルールは事業者のMFの設定。作成・更新・削除は内容を示して承認を得てから
 
 ## 制約（できないこと）
 
