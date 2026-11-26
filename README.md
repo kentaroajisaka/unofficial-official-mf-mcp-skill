@@ -4,6 +4,10 @@
 
 Claude Code / Claude Desktop（チャット・Cowork）の両方で動作します。AIがMFクラウド会計のMCPの使い方・APIのクセ・制約事項を自動で理解して対応してくれます。
 
+## 2026-11-24 の会計API更新
+
+連携明細をIDで検索し、対象外にするか、対象外を解除して未仕訳に戻せます。利用できるMCPの版・認証・権限と、操作後の確認手順は[明細のID指定取得と状態更新](references/accounting-transactions.md#明細のid指定取得と状態更新)を参照してください。
+
 ## v2.4.0 の変更点
 
 - **明細（取引）の取得 `getTransactions` の仕様を追加** — 銀行・カードなどから取り込まれた明細を取るAPI。`per_page` は **10〜500**（1000 はエラー）、`value_min` / `value_max` で金額を絞るときは **`side`（INCOME / EXPENSE）が必須**、`journalizing_statuses` の値（未仕訳 `none`・対象外 `excluded` など）を実測で確認

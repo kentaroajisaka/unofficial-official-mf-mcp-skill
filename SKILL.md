@@ -16,14 +16,14 @@ description: マネーフォワードクラウド会計のMCPを使う際のガ�
 | **複数環境での併用** | **可**（実測） | **不可**（取り合いで `invalid_grant`。実測） | 未検証 | 未検証 |
 | **証憑添付・解除** | **○** | **○** | ツールが無い | ツールが無い |
 | **仕訳削除** | **○** | **○** | ツールが無い | ツールが無い |
-| 未仕訳明細 | ○ | ○ | ツールが無い | ツールが無い |
+| 明細取得・状態更新 | [対応状況と使い方](references/accounting-transactions.md#明細のid指定取得と状態更新) | 期間指定取得 | 配備先のツール定義を確認 | ID指定取得・状態更新のツール定義を確認済み |
 | **仕訳のメモ欄** | **何も入らない**（実測） | **アプリ名が勝手に入る**（実測） | 未検証（OAuth なので入るはず） | 未検証（同左） |
 
 ### 選び方
 
 - **原則 `mf-api` を使う。** 証憑添付まで揃っていて、複数環境で同じキーを使え、メモ欄が汚れない
 - `mf-full` は OAuth 版。**`mf-api` に移行中**。トークンの取り合いがあるので複数環境で同時に使わない
-- **公式（alpha/beta）は予備。** 証憑添付・仕訳削除・未仕訳明細の**ツールが無い**ので本番の証憑処理には使えない
+- **公式（alpha/beta）は予備。** 証憑添付・仕訳削除の**ツールが無い**ので本番の証憑処理には使えない
 
 ### メモ欄にアプリ名が入る件（2026-09-25 実測）
 
@@ -178,6 +178,8 @@ JWTは1時間で切れるがサーバーが自動で取り直す。**利用者�
 | マスタ | `getAccounts` / `getSubAccounts` / `getDepartments` / `getTaxes` | 科目・部門・税区分 |
 | 取引先 | `getTradePartners` / `postTradePartners` | 取引先取得・登録 |
 | 口座 | `getConnectedAccounts` | 連携口座一覧 |
+| 明細 | `mfc_ca_getTransactions` | 連携明細の取得。ID指定は対応版のみ |
+| 明細 | `mfc_ca_putTransactionStatuses` | 対象外・解除。対応ツールが配備された接続で利用 |
 | 取引 | `postTransactions` | 取引登録 |
 | 自動仕訳ルール | `getJournalRules` / `postJournalRules` / `putJournalRules` / `deleteJournalRules` | 通帳・カード他のルール（下の「自動仕訳ルール」。削除は mf-api / mf-full だけ） |
 | 辞書 | `en_ja_dictionary` | 英日辞書 |
@@ -209,11 +211,11 @@ OpenAPI仕様書の description は「nil」で記載がないが、2026-04に�
 - **単月** → 推移表API（`getReportsTransition*`）
 - 試算表APIのPLは累計で返る。単月は推移表APIを優先
 - 補助科目別の残高は `with_sub_accounts: true`。補助科目の付いていない行は「補助科目なし」として出るので、補助科目の付け忘れが見つかる。**会社全体（全部門合計）の残高は、仕訳から積み上げず推移表・試算表で取る**。部門別は下の「部門別データ」のとおり仕訳から集計するしかない
-- 明細（銀行・カードの取り込み）の取得は `getTransactions`。`per_page` は10〜500、金額で絞るときは `side` が必須。詳しくは references/accounting-transactions.md
+- 明細（銀行・カードの取り込み）の取得は `getTransactions`。`per_page` は10〜500、金額で絞るときは `side` が必須。詳しくは[明細リファレンス](references/accounting-transactions.md)。ID指定取得と対象外・解除は[対応版・権限・確認手順](references/accounting-transactions.md#明細のid指定取得と状態更新)に従う
 
 ## パラメータの注意点
 
-- **`getTransactions` は `start_date` と `end_date` が必須**（無いと 400）
+- **`getTransactions` の期間検索は両日付が必須**。ID検索に対応する版では `ids` を指定して両日付を省略する
 - **試算表は `from`/`to` ではなく `fiscal_year`**（`from`/`to` だと 400）
 
 - `end_month` は**カレンダー月**を指定する（会計期の第N月目ではない）
@@ -378,14 +380,13 @@ https://accounting.moneyforward.com/books?numbers={number}&recognized_at_from={�
 
 | | 公式（alpha/beta） | mf-full / mf-api |
 |---|---|---|
-| 未仕訳明細の取得 | ツールが無い | **○ 実測**（`start_date`/`end_date` 必須） |
-| 未仕訳明細の仕訳化 | ツールが無い | ○ |
+| 明細の取得・状態更新 | [配備先のツール定義を確認](references/accounting-transactions.md#明細のid指定取得と状態更新) | 同左 |
+| 未仕訳明細の仕訳化 | 配備先のツール定義を確認 | ○ |
 | 証憑の添付 | ツールが無い | **○ 実測**（`POST /vouchers` → 201・`file_id` が返る） |
 | 証憑の紐付け解除 | ツールが無い | **○ 実測**（`DELETE /vouchers` → 204） |
 | 仕訳削除 | ツールが無い | **○ 実測**（`DELETE /journals/{id}` → 204） |
 
-左列は**公式MCPのツール一覧に該当するツールが無い**という意味。REST API 側に
-エンドポイントが存在するかは別（実際、証憑と仕訳削除は REST では叩ける）。
+公式MCPの証憑添付・紐付け解除と仕訳削除の行はMCPのツール有無を示す。これらの操作にはREST APIのエンドポイントがある。
 
 どれでもできないこと:
 
